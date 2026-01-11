@@ -1,0 +1,17 @@
+{
+    "name": "crossword-generator",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "pnpm --parallel -r run dev",
+        "dev:backend": "pnpm --filter backend run dev",
+        "dev:frontend": "pnpm --filter frontend run dev",
+        "build": "pnpm -r run build",
+        "test": "pnpm -r run test",
+        "lint": "pnpm -r run lint"
+    },
+    "engines": {
+        "node": ">=20.0.0"
+    }
+}
