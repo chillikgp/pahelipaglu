@@ -241,7 +241,7 @@ export async function registerGenerateRoutes(fastify: FastifyInstance): Promise<
                     userId: 'user_1', // Single user mode
                     theme: input.inputType === 'TOPIC' ? input.inputValue || 'Manual' : 'Custom',
                     language: input.contentLanguage,
-                    gridSize: `${gridWidth}x${gridHeight}`,
+                    gridSize: `${puzzle.gridWidth}x${puzzle.gridHeight}`,
                     createdAt: new Date().toISOString(),
                     requestedCount: clueItems.length, // Added root property
                     mode: mode, // Added root property

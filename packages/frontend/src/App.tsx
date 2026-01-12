@@ -4,6 +4,7 @@ import { GridPreview } from './components/GridPreview';
 import { ExportPayload } from './components/ExportPayload';
 import { HistoryPanel } from './components/HistoryPanel';
 import { ModeSelector } from './components/ModeSelector';
+import { PolyominoBreakdown } from './components/PolyominoBreakdown';
 import type {
     GenerateRequest,
     GenerateResponse,
@@ -208,38 +209,78 @@ function App() {
                                         <ExportPayload payload={response.payload} />
                                     </div>
                                 )}
+                                {/* Polyomino Breakdown for Bonza Mode */}
+                                {response.puzzle && (
+                                    <PolyominoBreakdown
+                                        placements={response.puzzle.placements.filter(p => p.placed)}
+                                        gridWidth={response.puzzle.gridWidth}
+                                        gridHeight={response.puzzle.gridHeight}
+                                        theme={response.puzzle.unplacedWords.length > 0 ? 'Crossword' : 'Crossword'}
+                                        crosswordId={response.crosswordId}
+                                    />
+                                )}
                             </>
                         )}
 
                         {showActiveBundle && activeCrossword.grid && (
-                            <div className="card">
-                                <h2 className="card-title">Crossword Preview</h2>
-                                <div className="history-stats">
-                                    <span>Mode: {activeCrossword.summary.mode}</span>
-                                    <span>Placed: {activeCrossword.summary.placedCount}</span>
-                                    <span>Grid: {activeCrossword.meta.gridSize}</span>
+                            <>
+                                <div className="card">
+                                    <h2 className="card-title">Crossword Preview</h2>
+                                    <div className="history-stats">
+                                        <span>Mode: {activeCrossword.summary.mode}</span>
+                                        <span>Placed: {activeCrossword.summary.placedCount}</span>
+                                        <span>Grid: {activeCrossword.meta.gridSize}</span>
+                                    </div>
+                                    <div
+                                        className="history-grid"
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: `repeat(${activeCrossword.grid.width}, 32px)`,
+                                            gap: '2px',
+                                            marginTop: '1rem',
+                                        }}
+                                    >
+                                        {activeCrossword.grid.cells.map((row, y) =>
+                                            row.map((cell, x) => (
+                                                <div
+                                                    key={`${x},${y}`}
+                                                    className={`grid-cell ${cell.g ? 'filled' : 'empty'}`}
+                                                >
+                                                    {cell.g || ''}
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
                                 </div>
-                                <div
-                                    className="history-grid"
-                                    style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: `repeat(${activeCrossword.grid.width}, 32px)`,
-                                        gap: '2px',
-                                        marginTop: '1rem',
-                                    }}
-                                >
-                                    {activeCrossword.grid.cells.map((row, y) =>
-                                        row.map((cell, x) => (
-                                            <div
-                                                key={`${x},${y}`}
-                                                className={`grid-cell ${cell.g ? 'filled' : 'empty'}`}
-                                            >
-                                                {cell.g || ''}
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
+                                {/* Polyomino Breakdown for saved crosswords */}
+                                {activeCrossword.placements && activeCrossword.filtered && (
+                                    <PolyominoBreakdown
+                                        placements={activeCrossword.placements.placed.map(p => {
+                                            // Find graphemes from filtered.kept
+                                            const filteredItem = activeCrossword.filtered?.kept.find(
+                                                f => f.answer === p.answer
+                                            );
+                                            if (!filteredItem) {
+                                                console.error(`[Polyomino] Missing graphemes for "${p.answer}". Cannot proceed.`);
+                                                throw new Error(`Missing graphemes for "${p.answer}"`);
+                                            }
+                                            return {
+                                                startX: p.col,
+                                                startY: p.row,
+                                                direction: p.direction,
+                                                clueItem: {
+                                                    graphemes: filteredItem.graphemes,
+                                                    answerText: p.answer,
+                                                }
+                                            };
+                                        })}
+                                        gridWidth={activeCrossword.grid.width}
+                                        gridHeight={activeCrossword.grid.height}
+                                        theme={activeCrossword.meta.theme}
+                                        crosswordId={activeCrosswordId ?? undefined}
+                                    />
+                                )}
+                            </>
                         )}
 
                         {!showGenerationResponse && !showActiveBundle && !error && !isLoading && (

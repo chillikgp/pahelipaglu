@@ -63,12 +63,14 @@ export interface FilteredArtifact {
 export interface PlacementsArtifact {
     placed: Array<{
         answer: string;
+        clue: string;
         row: number;
         col: number;
         direction: 'ACROSS' | 'DOWN';
     }>;
     unplaced: Array<{
         answer: string;
+        clue: string;
         reason: string;
     }>;
 }
@@ -156,6 +158,7 @@ async function ensureCrosswordDir(crosswordId: string): Promise<string> {
     await mkdir(dir, { recursive: true });
     return dir;
 }
+
 
 /**
  * Write a JSON artifact atomically.
@@ -285,12 +288,14 @@ export async function savePlacements(
             .filter((p) => p.placed)
             .map((p) => ({
                 answer: p.clueItem.answerText,
+                clue: p.clueItem.clueText,
                 row: p.startY,
                 col: p.startX,
                 direction: p.direction,
             })),
         unplaced: puzzle.unplacedWords.map((w) => ({
             answer: w.answerText,
+            clue: w.clueText,
             reason: 'no valid placement found',
         })),
     };
@@ -359,7 +364,8 @@ export async function listCrosswords(userId?: string): Promise<CrosswordListItem
         const items: CrosswordListItem[] = [];
 
         for (const entry of entries) {
-            if (!entry.startsWith('cw_')) continue;
+            // Skip hidden files/directories
+            if (entry.startsWith('.')) continue;
 
             try {
                 const meta = await readArtifact<CrosswordMeta>(entry, 'meta.json');
@@ -371,7 +377,7 @@ export async function listCrosswords(userId?: string): Promise<CrosswordListItem
                 if (userId && meta.userId !== userId) continue;
 
                 items.push({
-                    id: meta.id,
+                    id: entry, // Use directory name as authoritative ID
                     theme: meta.theme,
                     language: meta.language,
                     gridSize: meta.gridSize,

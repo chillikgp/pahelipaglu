@@ -159,6 +159,7 @@ export interface CrosswordBundle {
     placements?: {
         placed: Array<{
             answer: string;
+            clue?: string;
             row: number;
             col: number;
             direction: 'ACROSS' | 'DOWN';
@@ -166,6 +167,13 @@ export interface CrosswordBundle {
         unplaced: Array<{
             answer: string;
             reason: string;
+        }>;
+    };
+    filtered?: {
+        kept: Array<{
+            answer: string;
+            graphemes: string[];
+            clue: string;
         }>;
     };
 }

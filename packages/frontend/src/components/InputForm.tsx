@@ -34,11 +34,19 @@ export function InputForm({ onGenerate, isLoading, mode = 'ai', onDirtyChange }:
         removeUnplacedWords: true, // Default true for AI
     });
 
+    const [showJsonInput, setShowJsonInput] = useState(false);
+    const [jsonInput, setJsonInput] = useState('');
+    const [jsonError, setJsonError] = useState<string | null>(null);
+
     // Reset dirty state when mode changes
     useEffect(() => {
         if (onDirtyChange) {
             onDirtyChange(false);
         }
+        // Also reset JSON input view when mode changes
+        setShowJsonInput(false);
+        setJsonInput('');
+        setJsonError(null);
     }, [mode, onDirtyChange]);
 
     const handleChange = (
@@ -84,6 +92,49 @@ export function InputForm({ onGenerate, isLoading, mode = 'ai', onDirtyChange }:
         const newWords = (formData.words || []).filter((_, i) => i !== index);
         setFormData(prev => ({ ...prev, words: newWords }));
         onDirtyChange?.(true);
+    };
+
+    const handleJsonImport = () => {
+        try {
+            const parsed = JSON.parse(jsonInput);
+            if (!Array.isArray(parsed)) {
+                throw new Error('Input must be a JSON array of words');
+            }
+
+            const mappedWords = parsed.map((item: any, idx) => {
+                if (!item.answer && !item.word) {
+                    throw new Error(`Item at index ${idx} is missing "answer" or "word"`);
+                }
+
+                return {
+                    word: item.answer || item.word || '',
+                    clue: item.clue || '',
+                    // For manual advanced, map 0-based to 1-based for the UI if row/col exist
+                    // The UI expects 1-based, but our JSON input from user might be mixed.
+                    // The user said: "row": 4, "col": 0. 
+                    // Let's assume the JSON follows exactly what the user gave (probably 0-based if it's "Full Control" implies internal format).
+                    // However, the UI inputs at line 321/332 show 1-based to the user. 
+                    // If we blindly paste row:4, col:0, the UI will show row:4, col:0.
+                    // But if the user intends index 0 to be the first row, we might need to adjust or clarify.
+                    // Re-reading user request: 
+                    // "In case of words + hints, there will be no row, col or direction"
+                    // "The json can look like this... row: 4, col: 0"
+                    // The example `row: 0, col: 6` implies 0-based.
+                    // The internal UI state `formData.words` uses 1-based for the Inputs (see placeholders/titles).
+                    // So we should convert 0-based to 1-based when importing.
+                    row: typeof item.row === 'number' ? item.row + 1 : 1,
+                    col: typeof item.col === 'number' ? item.col + 1 : 1,
+                    direction: (item.direction || 'ACROSS') as 'ACROSS' | 'DOWN',
+                };
+            });
+
+            setFormData(prev => ({ ...prev, words: mappedWords }));
+            setShowJsonInput(false);
+            onDirtyChange?.(true);
+            setJsonError(null);
+        } catch (err: any) {
+            setJsonError(err.message || 'Invalid JSON');
+        }
     };
 
     const handleSubmit = (e: FormEvent) => {
@@ -292,97 +343,146 @@ export function InputForm({ onGenerate, isLoading, mode = 'ai', onDirtyChange }:
             {/* Manual Words Input */}
             {!showAiFields && (
                 <div className="card">
-                    <h2 className="card-title">Words & Clues</h2>
-                    <div className="word-input-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {(formData.words || []).map((word, index) => (
-                            <div key={index} className="word-item" style={{ alignItems: 'flex-start' }}>
-                                <div className="word-number">{index + 1}</div>
-                                <div className="word-content" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
-
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <div style={{ flex: 1 }}>
-                                            <input
-                                                type="text"
-                                                className="form-input"
-                                                placeholder="Word"
-                                                value={word.word}
-                                                onChange={(e) => handleWordChange(index, 'word', e.target.value)}
-                                                disabled={isLoading}
-                                            />
-                                        </div>
-                                        {showPlacementFields && (
-                                            <>
-                                                <div style={{ width: '60px' }}>
-                                                    <input
-                                                        type="number"
-                                                        className="form-input"
-                                                        placeholder="Row"
-                                                        title="Row (1-based)"
-                                                        value={word.row}
-                                                        onChange={(e) => handleWordChange(index, 'row', parseInt(e.target.value))}
-                                                        disabled={isLoading}
-                                                    />
-                                                </div>
-                                                <div style={{ width: '60px' }}>
-                                                    <input
-                                                        type="number"
-                                                        className="form-input"
-                                                        placeholder="Col"
-                                                        title="Column (1-based)"
-                                                        value={word.col}
-                                                        onChange={(e) => handleWordChange(index, 'col', parseInt(e.target.value))}
-                                                        disabled={isLoading}
-                                                    />
-                                                </div>
-                                                <div style={{ width: '100px' }}>
-                                                    <select
-                                                        className="form-select"
-                                                        value={word.direction}
-                                                        onChange={(e) => handleWordChange(index, 'direction', e.target.value)}
-                                                        disabled={isLoading}
-                                                    >
-                                                        <option value="ACROSS">Across</option>
-                                                        <option value="DOWN">Down</option>
-                                                    </select>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-
-                                    <div>
-                                        <input
-                                            type="text"
-                                            className="form-input"
-                                            placeholder="Clue"
-                                            value={word.clue}
-                                            onChange={(e) => handleWordChange(index, 'clue', e.target.value)}
-                                            disabled={isLoading}
-                                        />
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    className="btn btn-secondary"
-                                    onClick={() => handleRemoveWord(index)}
-                                    disabled={isLoading}
-                                    title="Remove word"
-                                    style={{ padding: '0.5rem', height: 'fit-content' }}
-                                >
-                                    🗑️
-                                </button>
-                            </div>
-                        ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h2 className="card-title" style={{ margin: 0 }}>Words & Clues</h2>
+                        <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => setShowJsonInput(!showJsonInput)}
+                            style={{ fontSize: '0.9rem', padding: '0.25rem 0.75rem' }}
+                        >
+                            {showJsonInput ? 'Switch to List View' : 'Paste JSON'}
+                        </button>
                     </div>
 
-                    <button
-                        type="button"
-                        className="btn btn-secondary btn-full"
-                        onClick={handleAddWord}
-                        disabled={isLoading}
-                        style={{ marginTop: '1rem' }}
-                    >
-                        + Add Word
-                    </button>
+                    {showJsonInput ? (
+                        <div className="json-input-section">
+                            <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '0.5rem' }}>
+                                Paste a JSON array of words.
+                                {mode === 'manual_advanced'
+                                    ? ' e.g., [{ "answer": "WORD", "row": 0, "col": 0, "direction": "ACROSS" }]'
+                                    : ' e.g., [{ "answer": "WORD", "clue": "Hint" }]'}
+                            </p>
+                            <textarea
+                                className="form-textarea"
+                                rows={10}
+                                placeholder={
+                                    mode === 'manual_advanced'
+                                        ? '[\n  {\n    "answer": "RAMLEELA",\n    "row": 4,\n    "col": 0,\n    "direction": "ACROSS"\n  }\n]'
+                                        : '[\n  {\n    "answer": "HELLO",\n    "clue": "Greeting"\n  }\n]'
+                                }
+                                value={jsonInput}
+                                onChange={(e) => setJsonInput(e.target.value)}
+                            />
+                            {jsonError && (
+                                <div style={{ color: '#ef4444', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                                    {jsonError}
+                                </div>
+                            )}
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={handleJsonImport}
+                                disabled={!jsonInput.trim()}
+                                style={{ marginTop: '1rem' }}
+                            >
+                                Import Words
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="word-input-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                {(formData.words || []).map((word, index) => (
+                                    <div key={index} className="word-item" style={{ alignItems: 'flex-start' }}>
+                                        <div className="word-number">{index + 1}</div>
+                                        <div className="word-content" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+
+                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <input
+                                                        type="text"
+                                                        className="form-input"
+                                                        placeholder="Word"
+                                                        value={word.word}
+                                                        onChange={(e) => handleWordChange(index, 'word', e.target.value)}
+                                                        disabled={isLoading}
+                                                    />
+                                                </div>
+                                                {showPlacementFields && (
+                                                    <>
+                                                        <div style={{ width: '60px' }}>
+                                                            <input
+                                                                type="number"
+                                                                className="form-input"
+                                                                placeholder="Row"
+                                                                title="Row (1-based)"
+                                                                value={word.row}
+                                                                onChange={(e) => handleWordChange(index, 'row', parseInt(e.target.value))}
+                                                                disabled={isLoading}
+                                                            />
+                                                        </div>
+                                                        <div style={{ width: '60px' }}>
+                                                            <input
+                                                                type="number"
+                                                                className="form-input"
+                                                                placeholder="Col"
+                                                                title="Column (1-based)"
+                                                                value={word.col}
+                                                                onChange={(e) => handleWordChange(index, 'col', parseInt(e.target.value))}
+                                                                disabled={isLoading}
+                                                            />
+                                                        </div>
+                                                        <div style={{ width: '100px' }}>
+                                                            <select
+                                                                className="form-select"
+                                                                value={word.direction}
+                                                                onChange={(e) => handleWordChange(index, 'direction', e.target.value)}
+                                                                disabled={isLoading}
+                                                            >
+                                                                <option value="ACROSS">Across</option>
+                                                                <option value="DOWN">Down</option>
+                                                            </select>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    className="form-input"
+                                                    placeholder="Clue"
+                                                    value={word.clue}
+                                                    onChange={(e) => handleWordChange(index, 'clue', e.target.value)}
+                                                    disabled={isLoading}
+                                                />
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            onClick={() => handleRemoveWord(index)}
+                                            disabled={isLoading}
+                                            title="Remove word"
+                                            style={{ padding: '0.5rem', height: 'fit-content' }}
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button
+                                type="button"
+                                className="btn btn-secondary btn-full"
+                                onClick={handleAddWord}
+                                disabled={isLoading}
+                                style={{ marginTop: '1rem' }}
+                            >
+                                + Add Word
+                            </button>
+                        </>
+                    )}
                 </div>
             )}
 

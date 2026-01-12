@@ -213,8 +213,80 @@ export class CrosswordEngine {
             warning = `Grid too constrained: only ${placedCount}/${requestedWords} words placed (${Math.round(finalFill * 100)}%).`;
         }
 
+        // --- SHRINK TO FIT LOGIC ---
+        // Calculate bounding box of placed words
+        let minX = this.width;
+        let maxX = 0;
+        let minY = this.height;
+        let maxY = 0;
+
+        if (bestResult.placements.length > 0) {
+            for (const p of bestResult.placements) {
+                if (!p.placed) continue;
+                // Update bounds based on start position
+                minX = Math.min(minX, p.startX);
+                minY = Math.min(minY, p.startY);
+
+                // Update bounds based on end position
+                if (p.direction === 'ACROSS') {
+                    maxX = Math.max(maxX, p.startX + p.clueItem.graphemes.length - 1);
+                    maxY = Math.max(maxY, p.startY);
+                } else {
+                    maxX = Math.max(maxX, p.startX);
+                    maxY = Math.max(maxY, p.startY + p.clueItem.graphemes.length - 1);
+                }
+            }
+        } else {
+            // If no words placed, keep original size or collapse? 
+            // Keeping original makes sense for empty state.
+            minX = 0; maxX = this.width - 1;
+            minY = 0; maxY = this.height - 1;
+        }
+
+        const newWidth = Math.max(0, maxX - minX + 1);
+        const newHeight = Math.max(0, maxY - minY + 1);
+
+        // Create new grid
+        const newGrid: GridCell[][] = [];
+        for (let y = 0; y < newHeight; y++) {
+            const row: GridCell[] = [];
+            for (let x = 0; x < newWidth; x++) {
+                row.push({ grapheme: undefined, wordIds: [] });
+            }
+            newGrid.push(row);
+        }
+
+        // Shift placements and populate new grid
+        const newPlacements = bestResult.placements.map(p => ({
+            ...p,
+            startX: p.startX - minX,
+            startY: p.startY - minY,
+        }));
+
+        // Re-populate grid from shifted placements to be safe and clean
+        // We could also copy cells, but re-writing ensures consistency
+        for (const p of newPlacements) {
+            for (let i = 0; i < p.clueItem.graphemes.length; i++) {
+                const x = p.direction === 'ACROSS' ? p.startX + i : p.startX;
+                const y = p.direction === 'DOWN' ? p.startY + i : p.startY;
+                const grapheme = p.clueItem.graphemes[i];
+
+                if (newGrid[y] && newGrid[y][x]) {
+                    const cell = newGrid[y][x];
+                    cell.grapheme = grapheme;
+                    cell.wordIds.push(p.wordId);
+                }
+            }
+        }
+
+        console.log(`[Engine] Cropped grid from ${this.width}x${this.height} to ${newWidth}x${newHeight}`);
+
         return {
-            ...bestResult,
+            grid: newGrid,
+            placements: newPlacements,
+            unplacedWords: bestResult.unplacedWords,
+            gridWidth: newWidth,
+            gridHeight: newHeight,
             warning,
             stats: {
                 requestedWords,

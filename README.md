@@ -8,6 +8,7 @@ A production-ready crossword puzzle generator system powered by Google Gemini AI
 - 🧠 **AI-powered clues**: Uses Google Gemini 2.5 to generate culturally appropriate answer-clue pairs
 - 📐 **Grapheme-safe**: Proper Unicode handling using `Intl.Segmenter` for complex scripts
 - 🎯 **Deterministic placement**: Seeded randomness for reproducible crossword layouts
+- 🧩 **Polyomino Mode**: Break down crosswords into Bonza-style puzzle pieces for mobile games
 - 📦 **Editor-compatible export**: URL-encoded payload with `{}` grapheme encoding
 - ⚡ **Fast**: Built with Fastify for optimal performance
 
